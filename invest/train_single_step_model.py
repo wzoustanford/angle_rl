@@ -19,7 +19,7 @@ def train_single_step_model(
     
     data_id = data_filename.split('single_step')[1].split('alpaca')[0]
     model_id = 'single_action_m_'+ exp_id +'_dropout'+str(dropout_ratio)+'_objmeanret'+str(obj_use_mean_return)+'_steps'+str(steps)+'_lr'+str(lr)+'_'
-    root_dir = '/home/ubuntu/code/HCL/invest/data/'+exp_id+'/'
+    root_dir = '/home/ubuntu/code/angle_rl/invest/data/'+exp_id+'/'
 
     ## -- model training log -- 
     log_D = dict()
@@ -63,7 +63,9 @@ def train_single_step_model(
     series = data['train_in_portfolio_series'].to(device)
     
     eval_features = data['testFeature'].to(device)
-    eval_series = data['test_in_portfolio_series'].to(device)
+    eval_series = data['test_in_portfolio_series']
+    if eval_series is not None:
+        eval_series = eval_series.to(device)
 
     if with_news is True: 
         news_features = data['trainNewsFeatures'].to(device)
@@ -75,9 +77,6 @@ def train_single_step_model(
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     optimizer.zero_grad()
 
-    features, series = features.to(device), series.to(device)
-    eval_features, eval_series = eval_features.to(device), eval_series.to(device)
-    
     for step in range(1, steps + 1):
         model.train()
         if with_news: 
@@ -130,39 +129,40 @@ def train_single_step_model(
 
             # assume we have a 1 dollar portfolio 
             # this is how many shares in the portfolio 
-            eval_portfolio_shares = eval_output / torch.unsqueeze((eval_series[:, 0] + 1e-10), 1)
-            eval_actual_return = torch.sum(torch.unsqueeze((eval_series[:, -1] - eval_series[:, 0]), 1) * eval_portfolio_shares)
+            if eval_series is not None: 
+                eval_portfolio_shares = eval_output / torch.unsqueeze((eval_series[:, 0] + 1e-10), 1)
+                eval_actual_return = torch.sum(torch.unsqueeze((eval_series[:, -1] - eval_series[:, 0]), 1) * eval_portfolio_shares)
 
-            eval_returns_series = torch.sum(eval_series[:, 1:] * eval_portfolio_shares - torch.unsqueeze(eval_series[:, 0], 1) * eval_portfolio_shares, dim=0)
+                eval_returns_series = torch.sum(eval_series[:, 1:] * eval_portfolio_shares - torch.unsqueeze(eval_series[:, 0], 1) * eval_portfolio_shares, dim=0)
 
-            eval_mean_return = torch.mean(eval_returns_series, dim=0)
-            eval_stddev = torch.std(eval_returns_series, dim=0)
-            
-            #eval_sharpe = eval_mean_return / eval_stddev 
-            eval_sharpe = eval_actual_return / (eval_stddev + 1e-10)
-            eval_loss = - eval_sharpe 
-            
-            _, top20_stocks_indices = torch.topk(eval_output, 20, dim=0)
-            top20_stocks = []
-            for i in range(len(top20_stocks_indices)):
-                top20_stocks.append(data['all_test_tickers'][top20_stocks_indices[i]])
-            
-            print(f'--> Eval model:\tLoss (Sharpe ratio): {str(eval_loss.item())}\tMean Returns:{str(eval_mean_return)}\t Actual Returns: {str(eval_actual_return.item())}\tStd Dev: {str(eval_stddev.item())}') 
-            print(f'--> Top 20 stocks: {str(top20_stocks)}')
-            
+                eval_mean_return = torch.mean(eval_returns_series, dim=0)
+                eval_stddev = torch.std(eval_returns_series, dim=0)
+                
+                #eval_sharpe = eval_mean_return / eval_stddev 
+                eval_sharpe = eval_actual_return / (eval_stddev + 1e-10)
+                eval_loss = - eval_sharpe 
+                
+                _, top20_stocks_indices = torch.topk(eval_output, 20, dim=0)
+                top20_stocks = []
+                for i in range(len(top20_stocks_indices)):
+                    top20_stocks.append(data['all_test_tickers'][top20_stocks_indices[i]])
+                
+                print(f'--> Eval model:\tLoss (Sharpe ratio): {str(eval_loss.item())}\tMean Returns:{str(eval_mean_return)}\t Actual Returns: {str(eval_actual_return.item())}\tStd Dev: {str(eval_stddev.item())}') 
+                print(f'--> Top 20 stocks: {str(top20_stocks)}')
+                
             if is_prod: 
                 model_pt_filename = root_dir + model_id + 'step'+str(step)+'.pt' 
             else: 
                 model_pt_filename = root_dir + model_id+'_' + data_id + '_step'+str(step)+'.pt' 
             
             torch.save(model.state_dict(), model_pt_filename)
-
-            log_D['eval_portfolio_shares'].append(eval_portfolio_shares)
-            log_D['eval_actual_return'].append(eval_actual_return.item())
-            log_D['eval_mean_return'].append(eval_mean_return.item())
-            log_D['eval_stddev'].append(eval_stddev.item())
-            log_D['eval_sharpe'].append(eval_sharpe.item())
-            log_D['top20_stocks'].append(top20_stocks)
+            if eval_series is not None: 
+                log_D['eval_portfolio_shares'].append(eval_portfolio_shares)
+                log_D['eval_actual_return'].append(eval_actual_return.item())
+                log_D['eval_mean_return'].append(eval_mean_return.item())
+                log_D['eval_stddev'].append(eval_stddev.item())
+                log_D['eval_sharpe'].append(eval_sharpe.item())
+                log_D['top20_stocks'].append(top20_stocks)
         
         model_log_filename = root_dir + model_id + '_'+data_id + '_log.pkl'
         pickle.dump(log_D, open(model_log_filename, 'wb'))

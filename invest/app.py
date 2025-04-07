@@ -5,8 +5,8 @@ app = Flask(__name__)
 
 class StartService:
     def __init__(self):
-        self.D4d = pickle.load(open('/home/ubuntu/code/HCL/invest/data/prod/prod_4d_model_prediction.pkl', 'rb'))
-        self.D25d = pickle.load(open('/home/ubuntu/code/HCL/invest/data/prod/prod_25d_model_prediction.pkl', 'rb'))
+        self.D4d = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/prod/prod_4d_model_prediction.pkl', 'rb'))
+        self.D25d = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/prod/prod_25d_model_prediction.pkl', 'rb'))
 
     def predict_4d(self): 
         return self.D4d

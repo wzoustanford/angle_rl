@@ -1,6 +1,6 @@
 import torch, pdb, pickle
 from datetime import datetime, timedelta
-from utils import find_closest_datetime, read_json_file, get_news_embedding
+from utils import find_closest_datetime_condition, read_json_file, get_news_embedding
 from dataclasses import dataclass
 
 @dataclass
@@ -15,6 +15,7 @@ class DataProcConfig:
     data_list_file: str
     is_prod: bool
     get_news_features: bool
+    nonoverlap_interval_days: int
 
 def doubleFilter(trainFeatures, dummy_tickers, all_tickers):
     
@@ -55,7 +56,15 @@ def concat_features_from_exchange(D, start_training_date_str, end_training_date_
         all_tickers.append(ticker)
     return trainFeatures, all_tickers
 
-def get_single_action_model_data(Dnyse, Dnasdaq, data_start_date, training_time_length, buy_sell_time_length, get_news_features=False):
+def get_single_action_model_data(
+        Dnyse, 
+        Dnasdaq, 
+        data_start_date, 
+        training_time_length, 
+        buy_sell_time_length, 
+        get_news_features=False, 
+        nonoverlap_interval_days=-1
+    ):
     
     """
     Function to extract feature/label-series data given ticker-keyed Dictionary of features 
@@ -73,16 +82,24 @@ def get_single_action_model_data(Dnyse, Dnasdaq, data_start_date, training_time_
 
     all_str_dates = Dnasdaq['AAPL']['prices']._bD.keys()
     all_datetime_dates = [datetime.strptime(date.strip(), date_format) for date in all_str_dates]
-
+    
     #fact = Dnasdaq['AAPL']['prices']._bD.keys() == Dnyse['BRK-B']['prices']._bD.keys()
     #print(fact)
-
-    start_training_date_str = find_closest_datetime(all_datetime_dates, start_training_date).strftime(date_format)[:11]
-    end_training_date_closest = find_closest_datetime(all_datetime_dates, end_training_date)
+    start_training_date_str = find_closest_datetime_condition(all_datetime_dates, start_training_date, 'at_or_after').strftime(date_format)[:10]
+    end_training_date_closest = find_closest_datetime_condition(all_datetime_dates, end_training_date, 'at_or_after_preferred')
     end_training_date_str = end_training_date_closest.strftime(date_format)[:10]
-    buy_date_str = end_training_date_str
-    sell_date_str = find_closest_datetime(all_datetime_dates, end_training_date_closest + buy_sell_time_length).strftime(date_format)[:10]
+    
+    if end_training_date_closest >= max(all_datetime_dates):
+        buy_date_str = None 
+        sell_date_str = None 
+    else: 
+        buy_date = find_closest_datetime_condition(all_datetime_dates, end_training_date_closest, 'strictly_after') 
+        buy_date_str = buy_date.strftime(date_format)[:10]
 
+        sell_date = find_closest_datetime_condition(all_datetime_dates, buy_date + buy_sell_time_length, 'at_or_after_preferred')
+        sell_date_non_overlap_stop = find_closest_datetime_condition(all_datetime_dates, end_training_date+timedelta(days=nonoverlap_interval_days), 'strictly_before')
+        sell_date = min(sell_date, sell_date_non_overlap_stop)
+        sell_date_str = sell_date.strftime(date_format)[:10]
     print(start_training_date_str)
     print(end_training_date_str)
     print(buy_date_str)
@@ -98,18 +115,25 @@ def get_single_action_model_data(Dnyse, Dnasdaq, data_start_date, training_time_
 
     trainFeatures = trainFeatures[1:, :]
 
-    sample_feature = Dnasdaq['AAPL']['prices'].return_ranged_value_list_from_keys(buy_date_str, sell_date_str)
-    in_portfolio_series = torch.zeros((1, len(sample_feature)))
-    dummy_tickers = []
+    if buy_date_str is None and sell_date_str is None: 
+        in_portfolio_series = None 
+        dummy_tickers = None 
+    else: 
+        sample_feature = Dnasdaq['AAPL']['prices'].return_ranged_value_list_from_keys(buy_date_str, sell_date_str)
+        in_portfolio_series = torch.zeros((1, len(sample_feature)))
+        dummy_tickers = []
 
-    in_portfolio_series, dummy_tickers = concat_features_from_exchange(Dnasdaq, buy_date_str, sell_date_str, sample_feature, in_portfolio_series, dummy_tickers, all_train_tickers)
-    in_portfolio_series, dummy_tickers = concat_features_from_exchange(Dnyse, buy_date_str, sell_date_str, sample_feature, in_portfolio_series, dummy_tickers, all_train_tickers)
+        in_portfolio_series, dummy_tickers = concat_features_from_exchange(Dnasdaq, buy_date_str, sell_date_str, sample_feature, in_portfolio_series, dummy_tickers, all_train_tickers)
+        in_portfolio_series, dummy_tickers = concat_features_from_exchange(Dnyse, buy_date_str, sell_date_str, sample_feature, in_portfolio_series, dummy_tickers, all_train_tickers)
 
-    in_portfolio_series = in_portfolio_series[1:, :]
+        in_portfolio_series = in_portfolio_series[1:, :]
 
-    trainFeatures, all_train_tickers = doubleFilter(trainFeatures, dummy_tickers, all_train_tickers)
+        trainFeatures, all_train_tickers = doubleFilter(trainFeatures, dummy_tickers, all_train_tickers)
     
-    trainNewsFeatures = get_openai_embedding_features(all_train_tickers, start_training_date_str, end_training_date_str) if get_news_features is True else None 
+    if get_news_features is True: 
+        trainNewsFeatures = get_openai_embedding_features(all_train_tickers, start_training_date_str, end_training_date_str) 
+    else:
+        trainNewsFeatures = None 
 
     return trainFeatures, in_portfolio_series, all_train_tickers, trainNewsFeatures
 
@@ -133,6 +157,7 @@ def get_single_action_model_train_test_data_from_config(
         data_proc_config.data_list_file,
         data_proc_config.is_prod, 
         data_proc_config.get_news_features, 
+        data_proc_config.nonoverlap_interval_days,
     )
 
 def get_single_action_model_train_test_data(
@@ -143,6 +168,7 @@ def get_single_action_model_train_test_data(
         data_list_file: str,
         is_prod: bool = False, 
         get_news_features: bool = False, 
+        nonoverlap_interval_days: int = -1, 
 ):
     """
     Function to extract training/test data for single action model 
@@ -205,6 +231,7 @@ def get_single_action_model_train_test_data(
         training_time_length, 
         buy_sell_time_length, 
         get_news_features,
+        nonoverlap_interval_days = nonoverlap_interval_days,
     )
     print('resulting shapes:')
     print(trainFeature.shape)
@@ -224,20 +251,22 @@ def get_single_action_model_train_test_data(
         training_time_length, 
         buy_sell_time_length, 
         get_news_features,
+        nonoverlap_interval_days = nonoverlap_interval_days,
     )
     print('resulting shapes:')
     print(testFeature.shape)
-    print(test_in_portfolio_series.shape)
+    if test_in_portfolio_series is not None: 
+        print(test_in_portfolio_series.shape)
     print(len(all_test_tickers))
     if testNewsFeatures is not None:
         print('testNewsFeatures:')
         print(testNewsFeatures.shape)
     
     if is_prod:
-        filename = f"/home/ubuntu/code/HCL/invest/data/prod/model_data_single_step_trainingtimelength{str(training_time_length_days)}d_buyselltimelength{str(buy_sell_time_length_days)}d_training_data_start_date_{training_data_start_date.strip().replace('-', '_')}_test_data_start_date_{test_data_start_date.strip().replace('-', '_')}_newsFeatures{get_news_features}_alpacafracfiltered.pkl"
+        filename = f"/home/ubuntu/code/angle_rl/invest/data/prod/model_data_single_step_trainingtimelength{str(training_time_length_days)}d_buyselltimelength{str(buy_sell_time_length_days)}d_training_data_start_date_{training_data_start_date.strip().replace('-', '_')}_test_data_start_date_{test_data_start_date.strip().replace('-', '_')}_newsFeatures{get_news_features}_alpacafracfiltered.pkl"
         list_f = open(data_list_file, 'w')
     else:
-        filename = f"/home/ubuntu/code/HCL/invest/data/model_data_single_step_trainingtimelength{str(training_time_length_days)}d_buyselltimelength{str(buy_sell_time_length_days)}d_training_data_start_date_{training_data_start_date.strip().replace('-', '_')}_test_data_start_date_{test_data_start_date.strip().replace('-', '_')}_newsFeatures{get_news_features}_alpacafracfiltered.pkl"
+        filename = f"/home/ubuntu/code/angle_rl/invest/data/model_data_single_step_trainingtimelength{str(training_time_length_days)}d_buyselltimelength{str(buy_sell_time_length_days)}d_training_data_start_date_{training_data_start_date.strip().replace('-', '_')}_test_data_start_date_{test_data_start_date.strip().replace('-', '_')}_newsFeatures{get_news_features}_alpacafracfiltered.pkl"
         list_f = open(data_list_file, 'a')
     print('saving to ... ' + filename)
     list_f.write(filename+'\n')

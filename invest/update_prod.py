@@ -3,13 +3,13 @@ from train_single_step_model import train_single_step_model
 from datetime import datetime, timedelta 
 from utils import get_finance_api_data, find_file_in_dir
 from ts_data_struct import BiHashList 
-from data_proc import get_single_action_model_train_test_data 
+from data_proc import get_single_action_model_train_test_data_from_config, DataProcConfig
 from model.iimodel import IIMODEL 
 
 def update_price_history_data():
     ## determine start date for the update
-    Dnasdaq = pickle.load(open('/home/ubuntu/code/HCL/invest/data/nasdaq_daily_price_volume_data.pkl', 'rb'))
-    Dnyse = pickle.load(open('/home/ubuntu/code/HCL/invest/data/nyse_daily_price_volume_data.pkl', 'rb'))
+    Dnasdaq = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/nasdaq_daily_price_volume_data.pkl', 'rb'))
+    Dnyse = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/nyse_daily_price_volume_data.pkl', 'rb'))
 
     end_date_nasdaq = Dnasdaq['AAPL']['prices']._bD.inv[len(Dnasdaq['AAPL']['prices']._bD) - 1]
     end_date_nyse = Dnyse['GM']['prices']._bD.inv[len(Dnyse['GM']['prices']._bD) - 1]
@@ -67,40 +67,51 @@ def update_price_history_data():
             Dnyse[symbol]['volumes'].append(item['date'], item['volume'])
     
     ## save data
-    pickle.dump(Dnasdaq, open('/home/ubuntu/code/HCL/invest/data/nasdaq_daily_price_volume_data.pkl', 'wb'))
-    pickle.dump(Dnyse, open('/home/ubuntu/code/HCL/invest/data/nyse_daily_price_volume_data.pkl', 'wb'))
+    pickle.dump(Dnasdaq, open('/home/ubuntu/code/angle_rl/invest/data/nasdaq_daily_price_volume_data.pkl', 'wb'))
+    pickle.dump(Dnyse, open('/home/ubuntu/code/angle_rl/invest/data/nyse_daily_price_volume_data.pkl', 'wb'))
     
 
-def update_train_test_model_4d():
+def update_train_test_model_5d():
     timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M:%S")
     #h = hashlib.sha256(timestamp.encode()).hexdigest()
-    data_list_file = "/home/ubuntu/code/HCL/invest/data/prod/data_list_tr360d_bs4d_prod.txt"
+    data_list_file = "/home/ubuntu/code/angle_rl/invest/data/prod/data_list_tr360d_bs5d_prod.txt"
+    date_format = "%Y-%m-%d"
+
+    get_news_features = False 
+
     training_time_length_days = 360
-    buy_sell_time_length_days = 4
-    
-    training_data_start_date = datetime.now() - timedelta(days=(training_time_length_days+buy_sell_time_length_days + 1))
-    test_data_start_date = datetime.now() - timedelta(days=(training_time_length_days))
+    buy_sell_time_length_days = 5
+    nonoverlap_interval_days = buy_sell_time_length_days + 2
+
+    training_data_start_date = datetime.now() - timedelta(days=(training_time_length_days+nonoverlap_interval_days))
+    test_data_start_date = datetime.now() - timedelta(days=(training_time_length_days + 1))
     training_data_start_date = datetime.strftime(training_data_start_date, "%Y-%m-%d")[:10].strip()
     test_data_start_date = datetime.strftime(test_data_start_date, "%Y-%m-%d")[:10].strip()
 
-    print("--------- [prod update - 4d model] processing data for dates: ---------")
+    data_proc_config = DataProcConfig(
+        training_time_length_days = training_time_length_days,
+        buy_sell_time_length_days = buy_sell_time_length_days,
+        training_data_start_date = training_data_start_date,
+        test_data_start_date = test_data_start_date,
+        data_list_file = data_list_file,
+        is_prod = True,
+        get_news_features=get_news_features,
+        nonoverlap_interval_days = nonoverlap_interval_days,
+    )
+
+    print("--------- [prod update - 5d model] processing data for dates: ---------")
     print("training_data_start_date: " + training_data_start_date)
     print("test_data_start_date: " + test_data_start_date)
-    get_single_action_model_train_test_data(
-        training_time_length_days,
-        buy_sell_time_length_days,
-        training_data_start_date,
-        test_data_start_date,
-        data_list_file,
-        is_prod = True,
+    get_single_action_model_train_test_data_from_config(
+        data_proc_config, 
     )
     
-    exp_id = 'prod_4d_models'
-    os.system('mkdir /home/ubuntu/code/HCL/invest/data/'+exp_id+'/')
+    exp_id = 'prod_5d_models'
+    os.system('mkdir /home/ubuntu/code/angle_rl/invest/data/'+exp_id+'/')
     
     data_list_f = open(data_list_file, 'r')
     l = data_list_f.readline()
-    print('-->training prod 4d model with: ' + l)
+    print('-->training prod 5d model with: ' + l)
     train_single_step_model(
         exp_id,
         l.strip(),
@@ -112,38 +123,48 @@ def update_train_test_model_4d():
         eval_interval=250,
         is_prod=True,
     )
-    
+
 def update_train_test_model_25d():
     timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M:%S")
-    # h = hashlib.sha256(timestamp.encode()).hexdigest()    
-    data_list_file = "/home/ubuntu/code/HCL/invest/data/prod/data_list_tr360d_bs25d_prod.txt"
+    #h = hashlib.sha256(timestamp.encode()).hexdigest()
+    data_list_file = "/home/ubuntu/code/angle_rl/invest/data/prod/data_list_tr360d_bs25d_prod.txt"
+    date_format = "%Y-%m-%d"
+
+    get_news_features = False 
+
     training_time_length_days = 360
     buy_sell_time_length_days = 25
-    
-    training_data_start_date = datetime.now() - timedelta(days=(training_time_length_days+buy_sell_time_length_days + 1))
+    nonoverlap_interval_days = buy_sell_time_length_days + 2
+
+    training_data_start_date = datetime.now() - timedelta(days=(training_time_length_days+nonoverlap_interval_days))
     test_data_start_date = datetime.now() - timedelta(days=(training_time_length_days))
     training_data_start_date = datetime.strftime(training_data_start_date, "%Y-%m-%d")[:10].strip()
     test_data_start_date = datetime.strftime(test_data_start_date, "%Y-%m-%d")[:10].strip()
 
+    data_proc_config = DataProcConfig(
+        training_time_length_days = training_time_length_days,
+        buy_sell_time_length_days = buy_sell_time_length_days,
+        training_data_start_date = training_data_start_date,
+        test_data_start_date = test_data_start_date,
+        data_list_file = data_list_file,
+        is_prod = True,
+        get_news_features=get_news_features,
+        nonoverlap_interval_days = nonoverlap_interval_days,
+    )
+    
     print("--------- [prod update - 25d model] processing data for dates: ---------")
     print("training_data_start_date: " + training_data_start_date)
     print("test_data_start_date: " + test_data_start_date)
-    
-    get_single_action_model_train_test_data(
-        training_time_length_days,
-        buy_sell_time_length_days,
-        training_data_start_date,
-        test_data_start_date,
-        data_list_file,
-        is_prod = True,
+    get_single_action_model_train_test_data_from_config(
+        data_proc_config, 
     )
     
     exp_id = 'prod_25d_models'
-    os.system('mkdir /home/ubuntu/code/HCL/invest/data/'+exp_id+'/')
+    os.system('mkdir /home/ubuntu/code/angle_rl/invest/data/'+exp_id+'/')
     
     data_list_f = open(data_list_file, 'r')
     l = data_list_f.readline()
-    print('-->training prod 4d model with: ' + l)
+    print('-->training prod 25d model with: ' + l)
     train_single_step_model(
         exp_id,
         l.strip(),
@@ -158,7 +179,7 @@ def update_train_test_model_25d():
 
 def update_predictions():
     model = IIMODEL()
-    data_list_file = "/home/ubuntu/code/HCL/invest/data/prod/data_list_tr360d_bs4d_prod.txt"
+    data_list_file = "/home/ubuntu/code/angle_rl/invest/data/prod/data_list_tr360d_bs5d_prod.txt"
     f = open(data_list_file, 'r')
     data_filename = f.readline().strip()
 
@@ -166,30 +187,30 @@ def update_predictions():
     test_features = recent_test_data['testFeature']
     test_tickers = recent_test_data['all_test_tickers']
 
-    exp_id_4d = 'prod_4d_models'
-    model_4d_filename = f'/home/ubuntu/code/HCL/invest/data/{exp_id_4d}/single_action_m_{exp_id_4d}_dropout0.0_objmeanretTrue_steps750_lr0.001_step750.pt'
-    checkpoint = torch.load(model_4d_filename)
+    exp_id_5d = 'prod_5d_models'
+    model_5d_filename = f'/home/ubuntu/code/angle_rl/invest/data/{exp_id_5d}/single_action_m_{exp_id_5d}_dropout0.0_objmeanretTrue_steps750_lr0.001_step750.pt'
+    checkpoint = torch.load(model_5d_filename)
     model.load_state_dict(checkpoint)
     model.eval()
     D = dict()
     D['scores'] = model(test_features).squeeze().tolist()
     D['tickers'] = test_tickers
-    pickle.dump(D, open('/home/ubuntu/code/HCL/invest/data/prod/prod_4d_model_prediction.pkl', 'wb'))
+    pickle.dump(D, open('/home/ubuntu/code/angle_rl/invest/data/prod/prod_5d_model_prediction.pkl', 'wb'))
 
 
     exp_id_25d = 'prod_25d_models'
-    model_25d_filename = f'/home/ubuntu/code/HCL/invest/data/{exp_id_25d}/single_action_m_{exp_id_25d}_dropout0.0_objmeanretTrue_steps750_lr0.001_step750.pt'
+    model_25d_filename = f'/home/ubuntu/code/angle_rl/invest/data/{exp_id_25d}/single_action_m_{exp_id_25d}_dropout0.0_objmeanretTrue_steps750_lr0.001_step750.pt'
     checkpoint = torch.load(model_25d_filename)
     model.load_state_dict(checkpoint)
     model.eval()
     D = dict()
     D['scores'] = model(test_features).squeeze().tolist()
     D['tickers'] = test_tickers
-    pickle.dump(D, open('/home/ubuntu/code/HCL/invest/data/prod/prod_25d_model_prediction.pkl', 'wb'))
+    pickle.dump(D, open('/home/ubuntu/code/angle_rl/invest/data/prod/prod_25d_model_prediction.pkl', 'wb'))
 
 
 if __name__ == '__main__':
     update_price_history_data()
-    update_train_test_model_4d()    
+    update_train_test_model_5d()    
     update_train_test_model_25d()
     update_predictions()

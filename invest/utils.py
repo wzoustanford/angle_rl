@@ -29,6 +29,66 @@ def read_json_file(file_path):
         data = json.load(file)
     return data
 
+def find_closest_datetime_condition(datetime_list, target_datetime, condition):
+    """
+    Finds the closest datetime to a target datetime in a list.
+
+    Args:
+        datetime_list: A list of datetime objects.
+        target_datetime: The datetime object to find the closest to.
+
+    Returns:
+        The closest datetime object in the list to the target datetime, or None if the list is empty.
+    """
+    """
+    # Example usage:
+    dates = [
+        datetime(2025, 3, 20),
+        datetime(2025, 3, 22),
+        datetime(2025, 3, 25),
+        datetime(2025, 3, 28),
+    ]
+    target_date = datetime(2025, 3, 23)
+
+    closest_date = find_closest_datetime(dates, target_date)
+    print(f"The closest date to {target_date} is {closest_date}") # Output: The closest date to 2025-03-23 00:00:00 is 2025-03-22 00:00:00"
+    """
+
+    if not datetime_list:
+        return None
+    
+    if condition == 'strictly_after':
+        after_datetime_list = []
+        for dt in datetime_list: 
+            if dt > target_datetime: #strictly larger, so if a datetime in the list is given, look for next datetime
+                after_datetime_list.append(dt)
+        res = min(after_datetime_list, key=lambda x: abs(x - target_datetime))
+    elif condition == 'at_or_after':
+        after_datetime_list = []
+        for dt in datetime_list: 
+            if dt >= target_datetime: #at or after, greater or equal 
+                after_datetime_list.append(dt)
+        res = min(after_datetime_list, key=lambda x: abs(x - target_datetime))
+    elif condition == 'strictly_before': 
+        before_datetime_list = []
+        for dt in datetime_list: 
+            if dt < target_datetime: #strictly larger, so if a datetime in the list is given, look for next datetime
+                before_datetime_list.append(dt)
+        res = min(before_datetime_list, key=lambda x: abs(x - target_datetime))
+    elif condition == 'at_or_after_prefered': 
+        after_datetime_list = []
+        for dt in datetime_list: 
+            if dt >= target_datetime: #at or after, greater or equal 
+                after_datetime_list.append(dt)
+        if len(after_datetime_list) > 0: 
+            res = min(after_datetime_list, key=lambda x: abs(x - target_datetime))
+        else: 
+            res = min(datetime_list, key=lambda x: abs(x - target_datetime))    
+    else: 
+        res = min(datetime_list, key=lambda x: abs(x - target_datetime))
+
+    return res 
+
 def find_closest_datetime(datetime_list, target_datetime):
     """
     Finds the closest datetime to a target datetime in a list.

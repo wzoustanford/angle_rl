@@ -82,7 +82,7 @@ def make_trade(symbol, shares_amount, trade_client, latest_price_on_record):
 
     
 def make_portfolio_buy_25d(latest_price_D, trade_client, total_portfolio_usd_amount=10000): 
-    D25d = pickle.load(open('/home/ubuntu/code/HCL/invest/data/prod/prod_25d_model_prediction.pkl', 'rb')) 
+    D25d = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/prod/prod_25d_model_prediction.pkl', 'rb')) 
     scores = D25d['scores'] 
     tickers = D25d['tickers'] 
     trade_record = dict() 
@@ -113,10 +113,10 @@ def make_portfolio_buy_25d(latest_price_D, trade_client, total_portfolio_usd_amo
 
     timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M:%S")
     record_filename = 'trade_record_25d_'+timestamp.replace(' ', '_')+'.pkl'
-    pickle.dump(trade_record, open('/home/ubuntu/code/HCL/invest/data/prod/trades/'+record_filename, 'wb'))
+    pickle.dump(trade_record, open('/home/ubuntu/code/angle_rl/invest/data/prod/trades/'+record_filename, 'wb'))
 
 def make_portfolio_buy_4d(latest_price_D, trade_client, total_portfolio_usd_amount=10000): 
-    D4d = pickle.load(open('/home/ubuntu/code/HCL/invest/data/prod/prod_4d_model_prediction.pkl', 'rb')) 
+    D4d = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/prod/prod_4d_model_prediction.pkl', 'rb')) 
     scores = D4d['scores'] 
     tickers = D4d['tickers'] 
     trade_record = dict() 
@@ -146,7 +146,7 @@ def make_portfolio_buy_4d(latest_price_D, trade_client, total_portfolio_usd_amou
     
     timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M:%S")
     record_filename = 'trade_record_4d_'+timestamp.replace(' ', '_')+'.pkl'
-    pickle.dump(trade_record, open('/home/ubuntu/code/HCL/invest/data/prod/trades/'+record_filename, 'wb'))
+    pickle.dump(trade_record, open('/home/ubuntu/code/angle_rl/invest/data/prod/trades/'+record_filename, 'wb'))
         
 
 if __name__ == "__main__":
@@ -158,8 +158,8 @@ if __name__ == "__main__":
 
     ## load and process latest prices 
     latest_price_D = dict() 
-    Dnasdaq = pickle.load(open('/home/ubuntu/code/HCL/invest/data/nasdaq_daily_price_volume_data.pkl', 'rb'))
-    Dnyse = pickle.load(open('/home/ubuntu/code/HCL/invest/data/nyse_daily_price_volume_data.pkl', 'rb'))
+    Dnasdaq = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/nasdaq_daily_price_volume_data.pkl', 'rb'))
+    Dnyse = pickle.load(open('/home/ubuntu/code/angle_rl/invest/data/nyse_daily_price_volume_data.pkl', 'rb'))
     for k in Dnasdaq: 
         latest_price_D[k] = Dnasdaq[k]['prices'][Dnasdaq[k]['prices']._bD.inv[len(Dnasdaq[k]['prices']._bD) - 1]]
         
