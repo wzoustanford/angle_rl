@@ -1,2 +1,2 @@
-# angle_rl
-reinforcement learning for angle
+# nexus_rl
+reinforcement learning for nexus
